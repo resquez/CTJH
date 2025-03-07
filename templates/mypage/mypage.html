@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마이페이지</title>
+    <link rel="stylesheet" href="/static/css/mypage/mypage.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR&display=swap" rel="stylesheet">
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+    <script src="/static/js/mypage/mypage.js" defer></script>
+</head>
+<body>
+    <!-- 🔹 네비게이션 메뉴 바 -->
+    <nav class="navbar">
+        <div class="navbar_logo">
+            <a href="http://192.168.1.100:80/main/main.html">
+                <img src="/static/images/rootair.jpg"/>
+            </a>
+        </div>
+        <ul class="navbar_menu">
+            <li><a href="http://192.168.1.100:80/main/main.html">예약</a></li>
+            <li><a href="http://192.168.1.100:80/notices/notices.html">공지사항</a></li>
+            <li><a href="http://192.168.1.100:80/qna/qna.html">문의사항</a></li>
+        </ul>
+        <ul class="navbar_member" id="navbar_member">
+            <!-- 로그인 상태에 따라 동적 업데이트 -->
+        </ul>
+    </nav>
+
+    <!-- 🔹 사용자 정보 -->
+    <section class="user-info">
+        <h2>나의 정보</h2>
+        <div class="info-box">
+            <div class="info-content">
+                <div class="profile">
+                    <h3 id="username">사용자 정보 로딩 중...</h3>
+                    <p><strong>PHONE</strong> | <span id="phone_number">-</span></p>
+                    <p><strong>EMAIL</strong> | <span id="email">-</span></p>
+                    <p><strong>ADDRESS</strong> | <span id="address">-</span></p>
+                </div>
+                <div class="circle-container">
+                    <div class="circle deep-blue">
+                        <p>총 자산</p>
+                        <h2><span id="balance">0</span><span class="unit">원</span></h2>
+                    </div>
+                    <div class="circle right-blue">
+                        <p>총 잔여 마일리지</p>
+                        <h2><span id="mileage">0</span></h2>
+                    </div>
+                    <div class="circle green">
+                        <p>예약된 여정</p>
+                        <h2 id="flight_cnt">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 🔹 항공권 예약 정보 -->
+    <section class="ticket-info">
+        <h2>항공권 예약 정보</h2>
+        <div id="ticket-container">로딩 중...</div>
+        <div class="user-buttons">
+            <button id="editProfileBtn" class="edit-btn">회원 정보 수정</button>
+            <button id="deleteAccountBtn" class="delete-btn">회원 탈퇴</button>
+        </div>
+    </section>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // ✅ 마이페이지 정보 가져오기
+            fetch("http://192.168.1.101:5000/api/mypage", {
+                method: "GET",
+                credentials: "include"
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert("사용자 정보를 불러올 수 없습니다. 로그인 상태를 확인하세요.");
+                    window.location.href = "http://192.168.1.100:80/member/member_login.html";
+                    return;
+                }
+
+                document.getElementById("username").textContent = data.username || "사용자 정보 없음";
+                document.getElementById("phone_number").textContent = data.phone_number || "없음";
+                document.getElementById("email").textContent = data.email || "없음";
+                document.getElementById("address").textContent = (data.address || "없음") + " " + (data.add_detail || "");
+                document.getElementById("balance").textContent = data.balance.toLocaleString() || "0";
+                document.getElementById("mileage").textContent = data.mileage.toLocaleString() || "0";
+                document.getElementById("flight_cnt").textContent = data.flight_cnt || "0";
+            })
+            .catch(error => console.error("❌ 마이페이지 데이터 로드 오류:", error));
+
+            // ✅ 예약된 항공권 정보 가져오기
+            fetch("http://192.168.1.101:5000/api/mypage/get_tickets", {
+                method: "GET",
+                credentials: "include"
+            })
+            .then(response => response.json())
+            .then(data => {
+                const ticketContainer = document.getElementById("ticket-container");
+                ticketContainer.innerHTML = "";
+
+                if (!data || data.length === 0) {
+                    ticketContainer.innerHTML = "<p>예약된 항공권이 없습니다.</p>";
+                    return;
+                }
+
+                data.forEach(ticket => {
+                    const ticketItem = document.createElement("div");
+                    ticketItem.classList.add("ticket-item");
+                    ticketItem.innerHTML = `
+                        <p><strong>항공편:</strong> ${ticket.flight_name}</p>
+                        <p><strong>출발:</strong> ${ticket.departure_airport} (${ticket.departure_time})</p>
+                        <p><strong>도착:</strong> ${ticket.arrival_airport} (${ticket.arrival_time})</p>
+                        <p><strong>좌석 등급:</strong> ${ticket.seat_class}</p>
+                        <p><strong>가격:</strong> ${ticket.price.toLocaleString()}원</p>
+                    `;
+                    ticketContainer.appendChild(ticketItem);
+                });
+            })
+            .catch(error => console.error("❌ 항공권 데이터 로드 오류:", error));
+
+            // ✅ 회원정보 수정 버튼 클릭 시 회원정보 수정 페이지로 이동
+            document.getElementById("editProfileBtn").addEventListener("click", function () {
+                fetch("http://192.168.1.101:5000/api/mypage/edit", {
+                    method: "GET",
+                    credentials: "include"
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.redirect_url) {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        alert("회원정보 수정 페이지로 이동할 수 없습니다.");
+                    }
+                })
+                .catch(error => console.error("❌ 회원정보 수정 이동 오류:", error));
+            });
+        });
+    </script>
+</body>
+</html>
+
